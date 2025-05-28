@@ -24,7 +24,7 @@ Before you begin, ensure you have the following installed:
 - npm or yarn
 - React Native development environment setup
 - Expo CLI
-- Google Maps API key (for map functionality)
+- Google Maps API key (for map functionality) (optional)
 
 ## Installation
 
@@ -46,7 +46,7 @@ npm install
 
 3. Configure environment variables:
    - Create a `.env` file in the frontend directory
-   - Add your Google Maps API key:
+   - Add your Google Maps API key: (Not required if you are not using backend)
    ```
    GOOGLE_MAPS_API_KEY=your_api_key_here
    ```
@@ -55,6 +55,8 @@ npm install
 ```bash
 # From the frontend directory
 npm start
+or
+npx expo start -c
 ```
 
 ## Project Structure
@@ -88,6 +90,8 @@ To run the application in development mode:
 ```bash
 cd frontend
 npm start
+or
+npx expo start -c
 ```
 
 Then:
