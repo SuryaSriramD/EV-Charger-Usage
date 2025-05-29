@@ -1,4 +1,4 @@
-# EV Charger Usage Application
+# ChargeWise | EV Charger Usage Application
 
 A React Native application that helps users locate and manage electric vehicle charging stations. The app provides real-time information about charging station availability, pricing, and navigation.
 
@@ -16,6 +16,7 @@ A React Native application that helps users locate and manage electric vehicle c
   - Distance from current location
 - 🌓 Dark/Light theme support
 - 📱 Responsive design for both iOS and Android
+- [Supabase Logo]: Used for databse
 
 ## Prerequisites
 
@@ -24,7 +25,6 @@ Before you begin, ensure you have the following installed:
 - npm or yarn
 - React Native development environment setup
 - Expo CLI
-- Google Maps API key (for map functionality) (optional)
 
 ## Installation
 
@@ -45,10 +45,9 @@ npm install
 ```
 
 3. Configure environment variables:
-   - Create a `.env` file in the frontend directory
-   - Add your Google Maps API key: (Not required if you are not using backend)
+   - Create a `.env` file in the backend directory
    ```
-   GOOGLE_MAPS_API_KEY=your_api_key_here
+   add SUPABASE URL, SUPABASE ANON KEY, AND FRONTEND URL
    ```
 
 4. Start the development server:
@@ -58,11 +57,20 @@ npm start
 or
 npx expo start -c
 ```
+```bash
+# From the backend directory
+cd backend
+npm install
+npm start
+or
+npm run dev
+```
 
 ## Project Structure
 
 ```
 EV-Charger_Usage/
+├── backend/                 # backend files (index.js)
 ├── frontend/                 # React Native application
 │   ├── app/                 # Main application code
 │   │   ├── (tabs)/         # Tab-based navigation screens
@@ -82,6 +90,8 @@ EV-Charger_Usage/
 - `react-native`: Core React Native library
 - `expo`: Expo framework
 - `react-navigation`: For navigation between screens
+- `victory-native`: Charts Library
+- `react-native-svg`: To render the charts into the application
 
 ## Development
 
@@ -113,6 +123,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Acknowledgments
 
-- Google Maps Platform for mapping services
+- React Native Maps and Expo Location Platforms for mapping services
 - Expo team for the development framework
 - React Native community for the amazing tools and libraries 
