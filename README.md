@@ -16,7 +16,7 @@ A React Native application that helps users locate and manage electric vehicle c
   - Distance from current location
 - 🌓 Dark/Light theme support
 - 📱 Responsive design for both iOS and Android
-- [Supabase Logo]: Used for databse
+- Supabase: Used for database
 
 ## Prerequisites
 
