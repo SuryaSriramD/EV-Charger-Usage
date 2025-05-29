@@ -1,7 +1,11 @@
 import { useRouter } from 'expo-router';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Use your computer's IP address if testing on a physical device
+// Replace 192.168.1.100 with your actual IP address
+const API_URL = Platform.OS === 'web' ? 'http://localhost:3001' : 'http://192.168.1.101:3001';
 
 // Predefined user profiles
 const USERS = [
@@ -17,100 +21,108 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
-  const [localUsers, setLocalUsers] = useState([]);
-
-  // Load local users when component mounts
-  useEffect(() => {
-    loadLocalUsers();
-  }, []);
-
-  const loadLocalUsers = async () => {
-    try {
-      const users = await AsyncStorage.getItem('localUsers');
-      if (users) {
-        setLocalUsers(JSON.parse(users));
-      }
-    } catch (error) {
-      console.error('Error loading users:', error);
-    }
-  };
-
-  const saveUser = async (newUser) => {
-    try {
-      const updatedUsers = [...localUsers, newUser];
-      await AsyncStorage.setItem('localUsers', JSON.stringify(updatedUsers));
-      setLocalUsers(updatedUsers);
-      return true;
-    } catch (error) {
-      console.error('Error saving user:', error);
-      return false;
-    }
-  };
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSignUp = async () => {
     setError('');
+    setIsLoading(true);
 
-    // Validate inputs
     if (!email || !password) {
       setError('All fields are required');
       Alert.alert('Error', 'Please fill in all fields');
+      setIsLoading(false);
       return;
     }
 
-    // Check if username already exists
-    const existingUser = [...USERS, ...localUsers].find(u => u.username === email);
-    if (existingUser) {
-      setError('Username already exists');
-      Alert.alert('Error', 'This username is already taken');
-      return;
-    }
+    try {
+      console.log('Attempting signup to:', `${API_URL}/signup`);
+      const response = await fetch(`${API_URL}/signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: email,
+          password: password,
+        }),
+      });
 
-    // Create new user
-    const newUser = {
-      username: email,
-      password: password
-    };
+      const data = await response.json();
+      console.log('Signup response:', data);
 
-    // Save user locally
-    const success = await saveUser(newUser);
-    if (success) {
-      Alert.alert('Success', 'Account created successfully! Please login.');
-      setIsSignUp(false);
-      setEmail('');
-      setPassword('');
-    } else {
-      Alert.alert('Error', 'Failed to create account. Please try again.');
+      if (!response.ok) {
+        throw new Error(data.error || 'Signup failed');
+      }
+
+      Alert.alert(
+        'Success', 
+        'Account created successfully! Please check your email for verification link before logging in.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              setIsSignUp(false);
+              setEmail('');
+              setPassword('');
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('Signup error:', error);
+      Alert.alert('Error', error.message || 'Failed to create account');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleLogin = async () => {
     setError('');
+    setIsLoading(true);
     
-    // Find user by username (check both predefined and local users)
-    const user = [...USERS, ...localUsers].find(u => u.username === email);
-    
-    if (!user) {
-      setError('Invalid username');
-      Alert.alert('Error', 'Invalid username');
+    if (!email || !password) {
+      setError('All fields are required');
+      Alert.alert('Error', 'Please fill in all fields');
+      setIsLoading(false);
       return;
     }
 
-    if (user.password !== password) {
-      setError('Invalid password');
-      Alert.alert('Error', 'Invalid password');
-      return;
-    }
-
-    // Store the logged-in username
     try {
-      await AsyncStorage.setItem('currentUser', user.username);
-    } catch (error) {
-      console.error('Error storing current user:', error);
-    }
+      console.log('Attempting login to:', `${API_URL}/login`);
+      const response = await fetch(`${API_URL}/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: email,
+          password: password,
+        }),
+      });
 
-    // Successful login
-    Alert.alert('Success', `Welcome back, ${user.username}!`);
-    router.replace('/(tabs)/home');
+      const data = await response.json();
+      console.log('Login response:', data);
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Login failed');
+      }
+
+      // Store both user and session data
+      await AsyncStorage.setItem('currentUser', JSON.stringify(data.user));
+      await AsyncStorage.setItem('user', JSON.stringify(data.user));
+      await AsyncStorage.setItem('session', JSON.stringify(data.session));
+      if (data.profile) {
+        await AsyncStorage.setItem('userProfile', JSON.stringify(data.profile));
+      }
+
+      Alert.alert('Success', `Welcome back, ${email}!`);
+      router.replace('/(tabs)/home');
+    } catch (error) {
+      console.error('Login error:', error);
+      Alert.alert('Error', error.message || 'Failed to login');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -122,7 +134,7 @@ export default function LoginScreen() {
 
       <TextInput
         style={[styles.input, error && styles.inputError]}
-        placeholder="Username"
+        placeholder="Email"
         value={email}
         onChangeText={(text) => {
           setEmail(text);
@@ -130,6 +142,7 @@ export default function LoginScreen() {
         }}
         autoCapitalize="none"
         autoCorrect={false}
+        keyboardType="email-address"
       />
       <TextInput
         style={[styles.input, error && styles.inputError]}
@@ -148,23 +161,22 @@ export default function LoginScreen() {
       </TouchableOpacity>
 
       <TouchableOpacity 
-        style={styles.loginBtn} 
+        style={[styles.loginBtn, isLoading && styles.loginBtnDisabled]} 
         onPress={isSignUp ? handleSignUp : handleLogin}
+        disabled={isLoading}
       >
-        <Text style={styles.loginText}>{isSignUp ? 'Sign Up' : 'Login'}</Text>
+        <Text style={styles.loginText}>
+          {isLoading ? 'Please wait...' : (isSignUp ? 'Sign Up' : 'Login')}
+        </Text>
       </TouchableOpacity>
 
       <TouchableOpacity 
         style={styles.switchBtn} 
-        onPress={() => {
-          setIsSignUp(!isSignUp);
-          setError('');
-          setEmail('');
-          setPassword('');
-        }}
+        onPress={() => router.replace('/signup')}
+        disabled={isLoading}
       >
         <Text style={styles.switchText}>
-          {isSignUp ? 'Already have an account? Login' : "Don't have an account? Sign Up"}
+          Don't have an account? Sign Up
         </Text>
       </TouchableOpacity>
     </KeyboardAvoidingView>
@@ -181,6 +193,7 @@ const styles = StyleSheet.create({
   errorText: { color: '#ff4444', marginBottom: 16, textAlign: 'center' },
   forgotText: { color: "#5c6e91", alignSelf: "flex-end", marginBottom: 24 },
   loginBtn: { backgroundColor: "#316fea", borderRadius: 30, padding: 16, alignItems: "center", marginTop: 10 },
+  loginBtnDisabled: { backgroundColor: "#a0b4e0" },
   loginText: { color: "#fff", fontSize: 18, fontWeight: "bold" },
   switchBtn: { marginTop: 20, alignItems: 'center' },
   switchText: { color: "#316fea", fontSize: 16 }

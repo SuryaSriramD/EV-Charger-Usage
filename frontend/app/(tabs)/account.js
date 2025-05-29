@@ -1,142 +1,23 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../constants/ThemeContext';
 
-// User data with vehicles and subscriptions
-const USER_DATA = {
-  'sriram.d': {
-    vehicle: {
-      model: 'Tesla Model 3',
-      year: '2023',
-      batteryCapacity: '75 kWh'
-    },
-    subscription: {
-      plan: 'Premium',
-      status: 'Active',
-      nextBilling: 'March 1, 2027'
-    }
-  },
-  'john.doe': {
-    vehicle: {
-      model: 'Nissan Leaf',
-      year: '2022',
-      batteryCapacity: '62 kWh'
-    },
-    subscription: {
-      plan: 'Basic',
-      status: 'Active',
-      nextBilling: 'February 15, 2026'
-    }
-  },
-  'jane.smith': {
-    vehicle: {
-      model: 'Ford Mustang Mach-E',
-      year: '2023',
-      batteryCapacity: '88 kWh'
-    },
-    subscription: {
-      plan: 'Premium Plus',
-      status: 'Active',
-      nextBilling: 'April 1, 2025'
-    }
-  },
-  'admin': {
-    vehicle: {
-      model: 'BMW i4',
-      year: '2023',
-      batteryCapacity: '83.9 kWh'
-    },
-    subscription: {
-      plan: 'Enterprise',
-      status: 'Active',
-      nextBilling: 'December 31, 2024'
-    }
-  }
-};
+const API_URL = Platform.OS === 'web' ? 'http://localhost:3001' : 'http://192.168.1.101:3001';
 
 export default function AccountScreen() {
   const router = useRouter();
   const { theme, isDarkMode, toggleTheme } = useTheme();
-  const [username, setUsername] = useState('');
-  const [userData, setUserData] = useState(null);
   const [preferences, setPreferences] = useState({
     notifications: true,
     darkMode: isDarkMode,
     autoConnect: true
   });
-
-  useEffect(() => {
-    loadUserData();
-  }, []);
-
-  useEffect(() => {
-    setPreferences(prev => ({
-      ...prev,
-      darkMode: isDarkMode
-    }));
-  }, [isDarkMode]);
-
-  const loadUserData = async () => {
-    try {
-      const currentUser = await AsyncStorage.getItem('currentUser');
-      if (currentUser) {
-        setUsername(currentUser);
-        const data = USER_DATA[currentUser] || {
-          vehicle: {
-            model: 'Not Set',
-            year: 'N/A',
-            batteryCapacity: 'N/A'
-          },
-          subscription: {
-            plan: 'Basic',
-            status: 'Inactive',
-            nextBilling: 'N/A'
-          }
-        };
-        setUserData(data);
-      }
-    } catch (error) {
-      console.error('Error loading user data:', error);
-    }
-  };
-
-  const togglePreference = (key) => {
-    if (key === 'darkMode') {
-      toggleTheme();
-    } else {
-      setPreferences(prev => ({
-        ...prev,
-        [key]: !prev[key]
-      }));
-    }
-  };
-
-  const handleSignOut = async () => {
-    try {
-      await AsyncStorage.removeItem('currentUser');
-      router.replace('/login');
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
-  };
-
-  const PreferenceItem = ({ icon, title, value, onToggle }) => (
-    <View style={[styles.preferenceItem, { borderBottomColor: theme.border }]}>
-      <View style={styles.preferenceInfo}>
-        <Ionicons name={icon} size={24} color={theme.primary} />
-        <Text style={[styles.preferenceTitle, { color: theme.text }]}>{title}</Text>
-      </View>
-      <TouchableOpacity
-        style={[styles.toggle, { backgroundColor: theme.toggleBackground }, value && { backgroundColor: theme.toggleActive }]}
-        onPress={onToggle}
-      >
-        <View style={[styles.toggleKnob, value && styles.toggleKnobActive]} />
-      </TouchableOpacity>
-    </View>
-  );
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [debug, setDebug] = useState('');
 
   const MenuItem = ({ icon, title, value, onPress }) => (
     <TouchableOpacity style={[styles.menuItem, { borderBottomColor: theme.border }]} onPress={onPress}>
@@ -151,88 +32,87 @@ export default function AccountScreen() {
     </TouchableOpacity>
   );
 
-  return (
-    <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Profile Header */}
-      <View style={[styles.profileHeader, { backgroundColor: theme.headerBackground, borderBottomColor: theme.border }]}>
-        <Image
-          source={{ uri: `https://ui-avatars.com/api/?name=${username}&background=4c669f&color=fff` }}
-          style={styles.profileImage}
-        />
-        <Text style={[styles.userName, { color: theme.text }]}>{username}</Text>
-        <Text style={[styles.memberSince, { color: theme.textTertiary }]}>
-          Member since {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-        </Text>
+  const handleSignOut = async () => {
+    try {
+      await AsyncStorage.removeItem('currentUser');
+      router.replace('/login');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const userData = await AsyncStorage.getItem('user');
+        setDebug(`AsyncStorage user: ${userData}`);
+        if (!userData) {
+          setDebug(prev => prev + '\nNo user data in AsyncStorage');
+          return;
+        }
+        const user = JSON.parse(userData);
+        setDebug(prev => prev + `\nFetching: ${API_URL}/user/${user.id}`);
+        const res = await fetch(`${API_URL}/user/${user.id}`);
+        const data = await res.json();
+        setDebug(prev => prev + `\nResponse: ${JSON.stringify(data)}`);
+        if (data && data.id) {
+          setProfile(data);
+        } else {
+          setProfile(null);
+        }
+      } catch (err) {
+        setDebug(prev => prev + `\nError: ${err.message}`);
+        setProfile(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProfile();
+  }, []);
+
+  if (loading) {
+    return <ActivityIndicator style={{ flex: 1 }} />;
+  }
+
+  if (!profile) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text style={styles.error}>Could not load profile.</Text>
+        <Text style={{ color: 'gray', marginTop: 20, fontSize: 12 }}>{debug}</Text>
       </View>
+    );
+  }
 
-      {/* Subscription Card */}
-      {userData && (
-        <View style={styles.section}>
-          <View style={[styles.card, { backgroundColor: theme.cardBackground }]}>
-            <View style={styles.cardHeader}>
-              <Ionicons name="star" size={24} color="#FFD700" />
-              <Text style={[styles.cardTitle, { color: theme.text }]}>{userData.subscription.plan} Subscription</Text>
-            </View>
-            <View style={styles.subscriptionInfo}>
-              <Text style={[styles.subscriptionStatus, { color: theme.success }]}>
-                Status: {userData.subscription.status}
-              </Text>
-              <Text style={[styles.subscriptionNext, { color: theme.textSecondary }]}>
-                Next billing: {userData.subscription.nextBilling}
-              </Text>
-            </View>
-          </View>
-        </View>
-      )}
-
+  return (
+    <ScrollView style={[styles.container, { backgroundColor: theme.background }]}> 
+      <View style={[styles.profileHeader, { backgroundColor: theme.headerBackground, borderBottomColor: theme.border }]}> 
+        <View style={styles.avatar}> 
+          <Text style={styles.avatarText}> 
+            {profile.first_name?.[0]?.toUpperCase()}{profile.last_name?.[0]?.toUpperCase()} 
+          </Text> 
+        </View> 
+        <Text style={styles.fullName}>{profile.first_name} {profile.last_name}</Text>
+      </View>
       {/* Vehicle Information */}
-      {userData && (
+      {(profile.vehicle_model || profile.vehicle_year || profile.vehicle_battery_capacity) && (
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Vehicle Information</Text>
-          <View style={[styles.card, { backgroundColor: theme.cardBackground }]}>
-            <MenuItem
-              icon="car"
-              title="Vehicle Model"
-              value={userData.vehicle.model}
-            />
-            <MenuItem
-              icon="calendar"
-              title="Year"
-              value={userData.vehicle.year}
-            />
-            <MenuItem
-              icon="battery-charging"
-              title="Battery Capacity"
-              value={userData.vehicle.batteryCapacity}
-            />
+          <View style={[styles.card, { backgroundColor: theme.cardBackground }]}> 
+            {profile.vehicle_model && (
+              <Text style={styles.vehicleField}><Text style={styles.vehicleLabel}>Model:</Text> {profile.vehicle_model}</Text>
+            )}
+            {profile.vehicle_year && (
+              <Text style={styles.vehicleField}><Text style={styles.vehicleLabel}>Year:</Text> {profile.vehicle_year}</Text>
+            )}
+            {profile.vehicle_battery_capacity && (
+              <Text style={styles.vehicleField}><Text style={styles.vehicleLabel}>Battery Capacity:</Text> {profile.vehicle_battery_capacity}</Text>
+            )}
           </View>
         </View>
       )}
 
-      {/* Preferences */}
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>Preferences</Text>
-        <View style={[styles.card, { backgroundColor: theme.cardBackground }]}>
-          <PreferenceItem
-            icon="notifications"
-            title="Push Notifications"
-            value={preferences.notifications}
-            onToggle={() => togglePreference('notifications')}
-          />
-          <PreferenceItem
-            icon="moon"
-            title="Dark Mode"
-            value={preferences.darkMode}
-            onToggle={() => togglePreference('darkMode')}
-          />
-          <PreferenceItem
-            icon="flash"
-            title="Auto-Connect"
-            value={preferences.autoConnect}
-            onToggle={() => togglePreference('autoConnect')}
-          />
-        </View>
-      </View>
+      
 
       {/* Account Actions */}
       <View style={styles.section}>
@@ -266,6 +146,32 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 60,
     borderBottomWidth: 1,
+  },
+  avatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#316fea',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  avatarText: {
+    color: '#fff',
+    fontSize: 32,
+    fontWeight: 'bold',
+  },
+  fullName: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    color: '#222',
+    textAlign: 'center',
+  },
+  error: {
+    color: 'red',
+    textAlign: 'center',
+    marginTop: 40,
   },
   profileImage: {
     width: 100,
@@ -370,5 +276,12 @@ const styles = StyleSheet.create({
   },
   toggleKnobActive: {
     transform: [{ translateX: 22 }],
+  },
+  vehicleField: {
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  vehicleLabel: {
+    fontWeight: 'bold',
   },
 });
